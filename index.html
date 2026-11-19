@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>座標分頁複製工具</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Inter 與 Noto Sans TC 字體 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-[#F5F0E6] text-[#352E28] min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 antialiased selection:bg-[#E7DAC7] selection:text-[#352E28]">
+
+    <!-- 主容器 -->
+    <main class="w-full max-w-lg mx-auto">
+        
+        <!-- 頂部標題列 -->
+        <header class="flex items-center justify-between mb-6 px-1">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-[#3D352E] text-[#FAF6EE] flex items-center justify-center shadow-[0_6px_16px_rgba(61,53,46,0.18)]">
+                    <!-- 座標圖示 SVG -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold text-[#2F2923] tracking-tight">座標分頁複製工具</h1>
+                    <p class="text-xs text-[#8A7E70] mt-0.5">一頁一組座標，優雅快速複製左右數值</p>
+                </div>
+            </div>
+
+            <!-- 切換回輸入模式的按鈕（檢視模式時顯示） -->
+            <button id="btnBackToInput" type="button" class="hidden inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-[#574D42] bg-[#FFFDF9] border border-[#E5DCCD] rounded-2xl shadow-sm hover:bg-[#FAF5EC] active:scale-95 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-[#8A7E70]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <span>編輯座標</span>
+            </button>
+        </header>
+
+        <!-- ==================== 畫面一：貼上座標輸入區 ==================== -->
+        <section id="inputSection" class="bg-[#FFFDF9] rounded-[28px] shadow-[0_12px_36px_-12px_rgba(92,76,58,0.12)] border border-[#EAE1D3] p-6 sm:p-7 transition-all">
+            <div class="flex items-center justify-between mb-3.5">
+                <label for="coordInput" class="text-sm font-semibold text-[#4A4138]">
+                    請貼上座標（每行一組）
+                </label>
+                <div class="flex items-center gap-2">
+                    <button id="btnSample" type="button" class="text-xs font-medium text-[#8C6244] hover:text-[#6F4C32] bg-[#F5ECE2] hover:bg-[#EDE0D1] px-3 py-1.5 rounded-xl transition">
+                        貼上範例
+                    </button>
+                    <button id="btnClear" type="button" class="text-xs font-medium text-[#8A7E70] hover:text-[#A94A4A] bg-[#F4EFE6] hover:bg-[#F7E8E6] px-3 py-1.5 rounded-xl transition">
+                        清空
+                    </button>
+                </div>
+            </div>
+
+            <textarea
+                id="coordInput"
+                rows="8"
+                placeholder="支援逗號、空白、Tab 或括號分隔，例如：&#10;25.033964, 121.564468&#10;24.147736 120.673648&#10;高雄85大樓, 22.611579, 120.300263"
+                class="w-full rounded-2xl border border-[#E6DDD0] bg-[#FAF6F0] p-4 text-sm font-mono text-[#352E28] placeholder-[#B0A495] focus:bg-[#FFFDF9] focus:border-[#A67C5B] focus:ring-4 focus:ring-[#A67C5B]/15 outline-none transition resize-y leading-relaxed"
+            ></textarea>
+
+            <!-- 內嵌錯誤提示區（取代 alert） -->
+            <div id="inputError" class="hidden mt-3 flex items-center gap-2 text-sm text-[#A64444] bg-[#FDF1F0] border border-[#F0D3D0] rounded-2xl px-4 py-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span id="inputErrorText">請至少輸入一組有效的左右座標。</span>
+            </div>
+
+            <div class="mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+                <p id="liveCountHint" class="text-xs text-[#8A7E70]">
+                    尚未偵測到座標
+                </p>
+                <button id="btnStart" type="button" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-[#FFFDF9] bg-[#3D352E] hover:bg-[#2B2520] active:scale-[0.98] rounded-2xl shadow-[0_8px_20px_-6px_rgba(61,53,46,0.35)] transition">
+                    <span>產生分頁檢視</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                </button>
+            </div>
+        </section>
+
+        <!-- ==================== 畫面二：一頁一座標檢視區 ==================== -->
+        <section id="viewerSection" class="hidden space-y-4">
+            
+            <!-- 頁碼與進度條卡片 -->
+            <div class="bg-[#FFFDF9] rounded-2xl shadow-[0_6px_20px_-8px_rgba(92,76,58,0.1)] border border-[#EAE1D3] px-4 py-3.5">
+                <div class="flex items-center justify-between mb-2.5">
+                    <span class="text-xs font-medium text-[#8A7E70]">目前進度</span>
+                    <div class="flex items-center gap-2">
+                        <span id="pageCounter" class="text-sm font-bold text-[#8C6244]">第 1 / 1 頁</span>
+                        <!-- 快速跳頁選單 -->
+                        <select id="pageJumpSelect" aria-label="快速跳頁" class="text-xs font-medium text-[#574D42] bg-[#F4EEE4] hover:bg-[#EBE2D4] rounded-xl px-2.5 py-1.5 outline-none cursor-pointer transition">
+                        </select>
+                    </div>
+                </div>
+                <div class="w-full h-2 bg-[#EFE8DC] rounded-full overflow-hidden">
+                    <div id="progressBar" class="h-full bg-[#A37452] rounded-full transition-all duration-300" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <!-- 單頁座標卡片（支援左右滑動換頁） -->
+            <div id="swipeCard" class="bg-[#FFFDF9] rounded-[28px] shadow-[0_14px_38px_-14px_rgba(92,76,58,0.14)] border border-[#EAE1D3] p-5 sm:p-7 select-none touch-pan-y">
+                
+                <!-- 座標標題 / 備註 -->
+                <div class="flex items-center justify-between gap-2 pb-4 mb-5 border-b border-[#F1E9DD]">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span id="coordIndexBadge" class="shrink-0 inline-flex items-center justify-center px-2.5 py-1 text-xs font-bold bg-[#3D352E] text-[#FAF6EE] rounded-xl">#1</span>
+                        <h2 id="coordLabel" class="text-base font-semibold text-[#2F2923] truncate">座標項目</h2>
+                    </div>
+                    <!-- 輔助功能：複製完整座標 -->
+                    <button id="btnCopyFull" type="button" class="shrink-0 text-xs font-medium text-[#7A6F62] hover:text-[#3D352E] bg-[#F5EFE6] hover:bg-[#EAE1D3] px-3 py-1.5 rounded-xl transition active:scale-95">
+                        複製整組
+                    </button>
+                </div>
+
+                <!-- 左右座標顯示與複製按鈕區塊 -->
+                <div class="space-y-4">
+                    
+                    <!-- 左座標區塊（暖焦糖燕麥色調） -->
+                    <div class="rounded-2xl border border-[#EBDFD0] bg-[#FAF5EE] p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-[#9A6B4C]">左座標</span>
+                            <span id="leftCopiedBadge" class="hidden inline-flex items-center gap-1 text-xs font-medium text-[#4F6D57] bg-[#E8EFE8] px-2.5 py-0.5 rounded-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                </svg>
+                                本頁已複製
+                            </span>
+                        </div>
+                        <div id="leftCoordValue" class="text-2xl sm:text-3xl font-mono font-bold text-[#2F2923] break-all mb-4 select-text tracking-tight">
+                            -
+                        </div>
+                        <button id="btnCopyLeft" type="button" class="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-[#A37452] hover:bg-[#8E6242] active:scale-[0.98] text-[#FFFDF9] font-semibold text-base shadow-[0_6px_16px_-4px_rgba(163,116,82,0.4)] transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <span id="btnCopyLeftText">複製左座標</span>
+                        </button>
+                    </div>
+
+                    <!-- 右座標區塊（柔霧鼠尾草米色調） -->
+                    <div class="rounded-2xl border border-[#DFE5DB] bg-[#F3F6F1] p-4 sm:p-5">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-[#5A7260]">右座標</span>
+                            <span id="rightCopiedBadge" class="hidden inline-flex items-center gap-1 text-xs font-medium text-[#4F6D57] bg-[#E3EDE4] px-2.5 py-0.5 rounded-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                                </svg>
+                                本頁已複製
+                            </span>
+                        </div>
+                        <div id="rightCoordValue" class="text-2xl sm:text-3xl font-mono font-bold text-[#2F2923] break-all mb-4 select-text tracking-tight">
+                            -
+                        </div>
+                        <button id="btnCopyRight" type="button" class="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl bg-[#647B6A] hover:bg-[#526657] active:scale-[0.98] text-[#FFFDF9] font-semibold text-base shadow-[0_6px_16px_-4px_rgba(100,123,106,0.38)] transition">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <span id="btnCopyRightText">複製右座標</span>
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- 底部上一頁 / 下一頁導覽列 -->
+            <div class="grid grid-cols-2 gap-3.5">
+                <button id="btnPrev" type="button" class="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-[#FFFDF9] border border-[#E5DCCD] text-[#4A4138] font-semibold text-sm shadow-sm hover:bg-[#FAF5EC] active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                    </svg>
+                    <span>上一頁</span>
+                </button>
+                <button id="btnNext" type="button" class="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-[#3D352E] text-[#FFFDF9] font-semibold text-sm shadow-[0_8px_18px_-6px_rgba(61,53,46,0.35)] hover:bg-[#2B2520] active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none transition">
+                    <span>下一頁</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- 快捷鍵提示 -->
+            <p class="text-center text-xs text-[#9C9082] pt-1">
+                提示：手機可左右滑動換頁，電腦可使用鍵盤 ← / → 換頁，按 1 複製左座標、按 2 複製右座標
+            </p>
+        </section>
+
+    </main>
+
+    <!-- 底部浮動 Toast 提示訊息 -->
+    <div id="toast" role="status" aria-live="polite" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 translate-y-3 transition-all duration-200">
+        <div class="flex items-center gap-2 bg-[#352E28] text-[#FAF6EE] text-sm font-medium px-4 py-2.5 rounded-full shadow-[0_10px_25px_rgba(53,46,40,0.28)]">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-[#A9CBB0] shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+            </svg>
+            <span id="toastMessage">已複製到剪貼簿</span>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 座標分頁複製工具主邏輯
+         */
+        (function () {
+            // 應用程式狀態
+            const state = {
+                items: [],          // 解析後的座標陣列: [{ label, left, right, copiedLeft, copiedRight }]
+                currentIndex: 0,    // 目前顯示的頁碼索引 (0-based)
+                toastTimer: null,
+                leftBtnTimer: null,
+                rightBtnTimer: null
+            };
+
+            // DOM 元素參照
+            const el = {
+                inputSection: document.getElementById('inputSection'),
+                viewerSection: document.getElementById('viewerSection'),
+                btnBackToInput: document.getElementById('btnBackToInput'),
+                coordInput: document.getElementById('coordInput'),
+                btnSample: document.getElementById('btnSample'),
+                btnClear: document.getElementById('btnClear'),
+                btnStart: document.getElementById('btnStart'),
+                inputError: document.getElementById('inputError'),
+                inputErrorText: document.getElementById('inputErrorText'),
+                liveCountHint: document.getElementById('liveCountHint'),
+
+                pageCounter: document.getElementById('pageCounter'),
+                pageJumpSelect: document.getElementById('pageJumpSelect'),
+                progressBar: document.getElementById('progressBar'),
+                swipeCard: document.getElementById('swipeCard'),
+                coordIndexBadge: document.getElementById('coordIndexBadge'),
+                coordLabel: document.getElementById('coordLabel'),
+                btnCopyFull: document.getElementById('btnCopyFull'),
+
+                leftCoordValue: document.getElementById('leftCoordValue'),
+                rightCoordValue: document.getElementById('rightCoordValue'),
+                leftCopiedBadge: document.getElementById('leftCopiedBadge'),
+                rightCopiedBadge: document.getElementById('rightCopiedBadge'),
+                btnCopyLeft: document.getElementById('btnCopyLeft'),
+                btnCopyLeftText: document.getElementById('btnCopyLeftText'),
+                btnCopyRight: document.getElementById('btnCopyRight'),
+                btnCopyRightText: document.getElementById('btnCopyRightText'),
+
+                btnPrev: document.getElementById('btnPrev'),
+                btnNext: document.getElementById('btnNext'),
+
+                toast: document.getElementById('toast'),
+                toastMessage: document.getElementById('toastMessage')
+            };
+
+            /**
+             * 解析多行文字為左右座標清單
+             * 支援格式：
+             * - 25.033964, 121.564468
+             * - (25.033964, 121.564468)
+             * - 25.033964 121.564468 / Tab 分隔
+             * - 台北101, 25.033964, 121.564468
+             * - 台北101 25.033964, 121.564468
+             * - 25°02'02"N, 121°33'52"E
+             */
+            function parseCoordinates(rawText) {
+                if (!rawText || !rawText.trim()) return [];
+
+                const lines = rawText.split(/\r?\n/);
+                const parsed = [];
+
+                for (let rawLine of lines) {
+                    let line = rawLine.trim();
+                    if (!line) continue;
+
+                    // 移除常見開頭編號（如 "1. ", "1) ", "- "）
+                    line = line.replace(/^(?:\d+[\.\)]\s+|-\s+)/, '').trim();
+
+                    // 移除最外層成對括號（如 "(25.03, 121.56)"）
+                    if (
+                        (line.startsWith('(') && line.endsWith(')')) ||
+                        (line.startsWith('[') && line.endsWith(']')) ||
+                        (line.startsWith('（') && line.endsWith('）'))
+                    ) {
+                        line = line.slice(1, -1).trim();
+                    }
+
+                    let label = '';
+                    let left = '';
+                    let right = '';
+
+                    // 策略 1：優先以逗號、全形逗號、Tab、分號或斜線切分
+                    const delimitedParts = line.split(/[,，\t;/]+/).map(s => s.trim()).filter(Boolean);
+
+                    if (delimitedParts.length === 2) {
+                        // 檢查左側是否包含前置名稱與數字（例如 "台北101 25.033964, 121.564468"）
+                        const leftMatch = delimitedParts[0].match(/^(.*?)\s+(-?\d+(?:\.\d+)?)$/);
+                        const rightIsNum = /^-?\d+(?:\.\d+)?$/.test(delimitedParts[1]);
+                        if (leftMatch && rightIsNum) {
+                            label = leftMatch[1].trim();
+                            left = leftMatch[2].trim();
+                            right = delimitedParts[1].trim();
+                        } else {
+                            left = delimitedParts[0];
+                            right = delimitedParts[1];
+                        }
+                    } else if (delimitedParts.length >= 3) {
+                        // 例如 "台北101, 25.033964, 121.564468" -> 取最後兩段為左右座標，其餘當作名稱
+                        right = delimitedParts[delimitedParts.length - 1];
+                        left = delimitedParts[delimitedParts.length - 2];
+                        label = delimitedParts.slice(0, -2).join(' ').trim();
+                    } else {
+                        // 策略 2：以空白字元切分
+                        const spaceParts = line.split(/\s+/).filter(Boolean);
+                        if (spaceParts.length === 2) {
+                            left = spaceParts[0];
+                            right = spaceParts[1];
+                        } else if (spaceParts.length > 2) {
+                            // 取最後兩個項目作為左右座標，前面當作名稱
+                            right = spaceParts[spaceParts.length - 1];
+                            left = spaceParts[spaceParts.length - 2];
+                            label = spaceParts.slice(0, -2).join(' ').trim();
+                        }
+                    }
+
+                    // 清理殘留的括號或引號
+                    left = left.replace(/^[\(\[\{"'（]+|[\)\]\}"'）]+$/g, '').trim();
+                    right = right.replace(/^[\(\[\{"'（]+|[\)\]\}"'）]+$/g, '').trim();
+
+                    if (left && right) {
+                        parsed.push({
+                            label: label || `座標 ${parsed.length + 1}`,
+                            left,
+                            right,
+                            copiedLeft: false,
+                            copiedRight: false
+                        });
+                    }
+                }
+
+                return parsed;
+            }
+
+            /**
+             * 使用相容於 iframe 環境的 document.execCommand('copy') 複製文字
+             */
+            function copyTextToClipboard(text) {
+                try {
+                    const tempTextarea = document.createElement('textarea');
+                    tempTextarea.value = text;
+                    // 避免畫面捲動跳動
+                    tempTextarea.style.position = 'fixed';
+                    tempTextarea.style.top = '-9999px';
+                    tempTextarea.style.left = '-9999px';
+                    tempTextarea.setAttribute('readonly', '');
+                    document.body.appendChild(tempTextarea);
+
+                    tempTextarea.select();
+                    tempTextarea.setSelectionRange(0, text.length);
+                    const success = document.execCommand('copy');
+                    document.body.removeChild(tempTextarea);
+                    return success;
+                } catch (err) {
+                    console.error('複製失敗:', err);
+                    return false;
+                }
+            }
+
+            /**
+             * 顯示底部 Toast 提示
+             */
+            function showToast(message) {
+                el.toastMessage.textContent = message;
+                el.toast.classList.remove('opacity-0', 'translate-y-3');
+                el.toast.classList.add('opacity-100', 'translate-y-0');
+
+                clearTimeout(state.toastTimer);
+                state.toastTimer = setTimeout(() => {
+                    el.toast.classList.remove('opacity-100', 'translate-y-0');
+                    el.toast.classList.add('opacity-0', 'translate-y-3');
+                }, 1800);
+            }
+
+            /**
+             * 顯示或隱藏輸入區錯誤訊息
+             */
+            function setInputError(msg) {
+                if (msg) {
+                    el.inputErrorText.textContent = msg;
+                    el.inputError.classList.remove('hidden');
+                } else {
+                    el.inputError.classList.add('hidden');
+                }
+            }
+
+            /**
+             * 即時更新輸入區的座標數量提示
+             */
+            function updateLiveCount() {
+                const list = parseCoordinates(el.coordInput.value);
+                if (list.length > 0) {
+                    el.liveCountHint.textContent = `已偵測到 ${list.length} 組座標（將產生 ${list.length} 頁）`;
+                    el.liveCountHint.classList.remove('text-[#8A7E70]');
+                    el.liveCountHint.classList.add('text-[#8C6244]', 'font-medium');
+                    setInputError('');
+                } else {
+                    el.liveCountHint.textContent = '尚未偵測到有效座標';
+                    el.liveCountHint.classList.remove('text-[#8C6244]', 'font-medium');
+                    el.liveCountHint.classList.add('text-[#8A7E70]');
+                }
+            }
+
+            /**
+             * 填充快速跳頁下拉選單
+             */
+            function populateJumpSelect() {
+                el.pageJumpSelect.innerHTML = '';
+                state.items.forEach((item, idx) => {
+                    const option = document.createElement('option');
+                    option.value = idx;
+                    option.textContent = `第 ${idx + 1} 頁${item.label !== `座標 ${idx + 1}` ? ` - ${item.label}` : ''}`;
+                    el.pageJumpSelect.appendChild(option);
+                });
+            }
+
+            /**
+             * 渲染目前頁面的座標內容
+             */
+            function renderCurrentPage() {
+                const total = state.items.length;
+                if (total === 0) return;
+
+                const idx = state.currentIndex;
+                const item = state.items[idx];
+
+                // 更新頁碼與進度條
+                el.pageCounter.textContent = `第 ${idx + 1} / ${total} 頁`;
+                el.pageJumpSelect.value = idx;
+                const percent = ((idx + 1) / total) * 100;
+                el.progressBar.style.width = `${percent}%`;
+
+                // 更新卡片內容
+                el.coordIndexBadge.textContent = `#${idx + 1}`;
+                el.coordLabel.textContent = item.label;
+                el.leftCoordValue.textContent = item.left;
+                el.rightCoordValue.textContent = item.right;
+
+                // 更新本頁已複製狀態標籤
+                el.leftCopiedBadge.classList.toggle('hidden', !item.copiedLeft);
+                el.rightCopiedBadge.classList.toggle('hidden', !item.copiedRight);
+
+                // 重置按鈕文字
+                resetCopyButtonTexts();
+
+                // 更新上一頁 / 下一頁按鈕狀態
+                el.btnPrev.disabled = idx === 0;
+                el.btnNext.disabled = idx === total - 1;
+            }
+
+            /**
+             * 重置複製按鈕文字狀態
+             */
+            function resetCopyButtonTexts() {
+                clearTimeout(state.leftBtnTimer);
+                clearTimeout(state.rightBtnTimer);
+                el.btnCopyLeftText.textContent = '複製左座標';
+                el.btnCopyRightText.textContent = '複製右座標';
+            }
+
+            /**
+             * 執行複製左座標
+             */
+            function handleCopyLeft() {
+                const item = state.items[state.currentIndex];
+                if (!item) return;
+
+                if (copyTextToClipboard(item.left)) {
+                    item.copiedLeft = true;
+                    el.leftCopiedBadge.classList.remove('hidden');
+                    el.btnCopyLeftText.textContent = '已複製左座標！';
+                    showToast(`已複製左座標：${item.left}`);
+
+                    clearTimeout(state.leftBtnTimer);
+                    state.leftBtnTimer = setTimeout(() => {
+                        el.btnCopyLeftText.textContent = '複製左座標';
+                    }, 1200);
+                } else {
+                    showToast('複製失敗，請手動選取複製');
+                }
+            }
+
+            /**
+             * 執行複製右座標
+             */
+            function handleCopyRight() {
+                const item = state.items[state.currentIndex];
+                if (!item) return;
+
+                if (copyTextToClipboard(item.right)) {
+                    item.copiedRight = true;
+                    el.rightCopiedBadge.classList.remove('hidden');
+                    el.btnCopyRightText.textContent = '已複製右座標！';
+                    showToast(`已複製右座標：${item.right}`);
+
+                    clearTimeout(state.rightBtnTimer);
+                    state.rightBtnTimer = setTimeout(() => {
+                        el.btnCopyRightText.textContent = '複製右座標';
+                    }, 1200);
+                } else {
+                    showToast('複製失敗，請手動選取複製');
+                }
+            }
+
+            /**
+             * 執行複製完整座標
+             */
+            function handleCopyFull() {
+                const item = state.items[state.currentIndex];
+                if (!item) return;
+                const fullText = `${item.left}, ${item.right}`;
+                if (copyTextToClipboard(fullText)) {
+                    showToast(`已複製整組：${fullText}`);
+                }
+            }
+
+            /**
+             * 切換至指定頁面
+             */
+            function goToPage(index) {
+                if (index < 0 || index >= state.items.length) return;
+                state.currentIndex = index;
+                renderCurrentPage();
+            }
+
+            /**
+             * 切換畫面模式：'input' 或 'viewer'
+             */
+            function switchView(mode) {
+                if (mode === 'viewer') {
+                    el.inputSection.classList.add('hidden');
+                    el.viewerSection.classList.remove('hidden');
+                    el.btnBackToInput.classList.remove('hidden');
+                } else {
+                    el.viewerSection.classList.add('hidden');
+                    el.btnBackToInput.classList.add('hidden');
+                    el.inputSection.classList.remove('hidden');
+                    el.coordInput.focus();
+                }
+            }
+
+            // ==================== 事件監聽器綁定 ====================
+
+            // 輸入框即時偵測
+            el.coordInput.addEventListener('input', updateLiveCount);
+
+            // 貼上範例
+            el.btnSample.addEventListener('click', () => {
+                el.coordInput.value = [
+                    '台北101, 25.033964, 121.564468',
+                    '台中歌劇院, 24.162701, 120.640328',
+                    '22.999728, 120.227028',
+                    '(22.611579, 120.300263)',
+                    '23.973875 120.982025'
+                ].join('\n');
+                updateLiveCount();
+            });
+
+            // 清空輸入
+            el.btnClear.addEventListener('click', () => {
+                el.coordInput.value = '';
+                updateLiveCount();
+                setInputError('');
+                el.coordInput.focus();
+            });
+
+            // 開始分頁檢視
+            el.btnStart.addEventListener('click', () => {
+                const parsed = parseCoordinates(el.coordInput.value);
+                if (parsed.length === 0) {
+                    setInputError('找不到有效的左右座標，請確認每行至少包含兩個以逗號或空白分隔的數值。');
+                    return;
+                }
+                setInputError('');
+                state.items = parsed;
+                state.currentIndex = 0;
+                populateJumpSelect();
+                renderCurrentPage();
+                switchView('viewer');
+            });
+
+            // 返回編輯座標
+            el.btnBackToInput.addEventListener('click', () => {
+                switchView('input');
+            });
+
+            // 複製按鈕事件
+            el.btnCopyLeft.addEventListener('click', handleCopyLeft);
+            el.btnCopyRight.addEventListener('click', handleCopyRight);
+            el.btnCopyFull.addEventListener('click', handleCopyFull);
+
+            // 換頁按鈕與下拉選單
+            el.btnPrev.addEventListener('click', () => goToPage(state.currentIndex - 1));
+            el.btnNext.addEventListener('click', () => goToPage(state.currentIndex + 1));
+            el.pageJumpSelect.addEventListener('change', (e) => {
+                goToPage(parseInt(e.target.value, 10));
+            });
+
+            // 鍵盤快捷鍵支援（檢視模式下）
+            document.addEventListener('keydown', (e) => {
+                if (el.viewerSection.classList.contains('hidden')) return;
+                // 避免在下拉選單操作時衝突
+                if (document.activeElement === el.pageJumpSelect) return;
+
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    goToPage(state.currentIndex - 1);
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    goToPage(state.currentIndex + 1);
+                } else if (e.key === '1') {
+                    handleCopyLeft();
+                } else if (e.key === '2') {
+                    handleCopyRight();
+                }
+            });
+
+            // 手機觸控左右滑動換頁支援
+            let touchStartX = 0;
+            let touchStartY = 0;
+
+            el.swipeCard.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
+            }, { passive: true });
+
+            el.swipeCard.addEventListener('touchend', (e) => {
+                if (e.changedTouches.length !== 1) return;
+                const diffX = e.changedTouches[0].clientX - touchStartX;
+                const diffY = e.changedTouches[0].clientY - touchStartY;
+
+                // 確認為水平滑動且距離足夠（超過 50px）
+                if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+                    if (diffX < 0) {
+                        goToPage(state.currentIndex + 1); // 向左滑 -> 下一頁
+                    } else {
+                        goToPage(state.currentIndex - 1); // 向右滑 -> 上一頁
+                    }
+                }
+            }, { passive: true });
+        })();
+    </script>
+</body>
+</html>
